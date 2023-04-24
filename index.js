@@ -23,8 +23,8 @@ mongoose
     console.log("Error connecting to mongodb");
   });
 const taskSchema = new mongoose.Schema({
-  id: Number,
   title: String,
+  //completed:true
 });
 const Task = mongoose.model("Task", taskSchema);
 
@@ -33,147 +33,80 @@ app.get("/", function (req, res) {
   res.send("Hello WOrld!");
 });
 
-let task = [];
-app.post("/v1/tasks", async (req, res) => {
-  try {
-    let task = new Task({
-      id: req.body.id,
-      title: req.body.title,
-      is_completed: req.body.is_completed === "true" ? true : false,
+// Create Tasks
+let tasks = [];
 
-      //     description:req.body.description,
-      //     created_at:new Date(),
-      //    updated_at:new Date()
-    });
-    task.save();
-    res.json({
-      status: 201,
-      message: "Task created successfully",
-      data: {
-        id: task.id,
-        title: task.title,
-        is_completed: task.is_completed,
-      },
-    });
-  } catch (err) {
-    res.json({
-      status: 500,
-      message: "Error in creating task",
-    });
-  }
+// Create a new task
+app.post('/v1/tasks', (req, res) => {
+  const task = {
+    id: tasks.length + 1,
+    title: req.body.title,
+    is_completed: false,
+  };
+  tasks.push(task);
+  res.status(201).json({ id: task.id });
 });
-//get a all task
-app.get("/v1/tasks", async (req, res) => {
-  try {
-    let tasks = await Task.find();
-    res.json(tasks);
-  } catch (err) {
-    res.json({
-      status: 500,
-      message: "Error in getting tasks",
-    });
-  }
+
+// List all tasks created
+app.get('/v1/tasks', (req, res) => {
+  res.status(200).json({ tasks });
 });
-//
-//get a specific task
-app.get("/v1/tasks/:id", async (req, res) => {
-  const { id } = req.query;
-  try {
-    let task = await Task.findOne(id);
-    res.json({
-      status: 200,
-      message: "Task found successfully",
-      data: {
-        id: task.id,
-        title: task.title,
-        is_completed: task.is_completed,
-      },
-    });
-  } catch (err) {
-    res.json({
-      status: 500,
-      message: "Error in getting task",
-      data: {
-        id: err.message,
-      },
-    });
-  }
-});
-app.delete("/v1/tasks/:id", async (req, res) => {
-  const { id } = req.query;
-  try {
-    let task = await Task.findById(id, req.body);
-    //await task.remove();
-    res.json({
-      status: 200,
-      message: "Task deleted successfully",
-    });
-  } catch (err) {
-    res.json({
-      status: 204,
-      message: "none",
-      data: {
-        id: err.message,
-      },
-    });
-  }
-});
-app.delete("/v1/tasks", async (req, res) => {
-  const { id } = req.query;
-  try {
-    let task = await Task.findByIdAndDelete(id, req.body);
-    //await task.remove();
-    res.json({
-      status: 200,
-      message: "Task deleted successfully",
-    });
-  } catch (err) {
-    res.json({
-      status: 204,
-      message: "none",
-      data: {
-        id: err.message,
-      },
-    });
+
+// Get a specific task
+app.get('/v1/tasks/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const task = tasks.find((t) => t.id === id);
+  if (!task) {
+    res.status(404).json({ error: 'There is no task at that id' });
+  } else {
+    res.status(200).json(task);
   }
 });
 
-app.put("/v1/tasks/:id", async (req, res) => {
-  const { id } = req.params;
-  try {
-    let task = await Task.findById(id, req.body);
-    task.title = req.body.title;
-    task.is_completed = req.body.is_completed;
-    //await task.save();
-    res.json({
-      status: 204,
-      message: "None",
-      data: {
-        id: task.id,
-        title: task.title,
-        is_completed: task.is_completed,
-      },
-    });
-  } catch (err) {
-    res.json({
-      status: 404,
-      message: "id not found",
-      data: {
-        id: err.message,
-      },
-    });
+// Delete a specific task
+app.delete('/v1/tasks/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const index = tasks.findIndex((t) => t.id === id);
+  if (index === -1) {
+    res.status(404).json({ error: 'There is no task at that id' });
+  } else {
+    tasks.splice(index, 1);
+    res.status(204).send();
   }
-
-  // const task=await Task.findByIdAndUpdate(id,req.body,{new:true})
-  // res.json({
-  //     status: 200,
-  //     message: "Task updated successfully",
-  //     data: {
-  //         id: task.id,
-  //         title: task.title,
-  //         is_completed: task.is_completed
-  //         }
-  //         });
 });
 
+// Edit the title or completion of a specific task
+app.put('/v1/tasks/:id', (req, res) => {
+  const id = parseInt(req.params.id);
+  const task = tasks.find((t) => t.id === id);
+  if (!task) {
+    res.status(404).json({ error: 'There is no task at that id' });
+  } else {
+    if (req.body.title) {
+      task.title = req.body.title;
+    }
+    if (req.body.is_completed !== undefined) {
+      task.is_completed = req.body.is_completed;
+    }
+    res.status(204).send();
+  }
+});
+
+// Bulk add tasks
+app.post('/v1/tasks', (req, res) => {
+  const newTasks = req.body.tasks.map((task) => ({
+    id: tasks.length + 1,
+    title: task.title,
+    is_completed: task.is_completed || false,
+  }));
+  tasks = tasks.concat(newTasks);
+  res.status(201).json({ tasks: newTasks.map((t) => ({ id: t.id })) });
+});
+
+// Bulk delete tasks
+app.delete('/v1/tasks', (req, res) => {
+  const ids = req.body.tasks.map((task) => task.id);
+  tasks = tasks.filter((t) => !ids.includes(t.id));
+  res.status(204).send();
+});
 app.listen(port, () => console.log(`server is running on port ${port}`));
